@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { getJSON, postJSON } from '../api'
 import PanelCut from '../components/PanelCut.vue'
 const windows = ref([]); const fabrics = ref([]); const wid = ref(1); const fid = ref(1)
@@ -10,7 +10,14 @@ onMounted(async () => {
   expoTypes.value = (await getJSON('/api/exposure/types')).items
   if (windows.value.length) wid.value = windows.value[0].id
   if (fabrics.value.length) fid.value = fabrics.value[0].id
+  followWindowType()
 })
+// 算料台默认跟随窗上现行类型（只作新开单的初值，仍可手动改选）
+function followWindowType(){
+  const w = windows.value.find(x => x.id === Number(wid.value))
+  if (w?.exposure_type) expo.value = w.exposure_type
+}
+watch(wid, followWindowType)
 async function go(save){
   err.value = ''; out.value = null
   try {
@@ -28,10 +35,11 @@ async function go(save){
     {{ t.label }}<template v-if="t.value!=='indoor'">（+{{ t.extra_meters }}m<template v-if="!t.enabled">，已停用</template>）</template>
   </option>
 </select>
-<button @click="go(false)">试算</button><button @click="go(true)">保存</button>
+<button @click="go(false)">干算</button><button @click="go(true)">保存订货</button>
 <p v-if="err" class="bad">测算被拒绝：{{ err }}</p>
 <template v-if="out">
 <PanelCut :panels="out.panels" :cut-height="out.cut_height" :meters="out.meters" />
-<p>曝晒类型：{{ out.exposure_label }} ｜ 基础 {{ out.meters }} m + 加米 {{ out.extra_meters }} m = <b>订货 {{ out.order_meters }} m</b></p>
+<p>曝晒类型：{{ out.exposure_label }} ｜ 类型 <b>{{ out.exposure_type }}</b> ｜ 基础 {{ out.meters }} m ＋ 加米 {{ out.extra_meters }} m ＝ <b>订货 {{ out.order_meters }} m</b></p>
+<p class="hint" v-if="out.run_id">已写入编号 #{{ out.run_id }}；改设置或窗类型不会回刷该单。干算不落库、不影响已写入编号。</p>
 </template>
 </div></template>
