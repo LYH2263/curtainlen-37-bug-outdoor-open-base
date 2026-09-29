@@ -1,6 +1,5 @@
 from fastapi import APIRouter
 from app.repositories import settings_repo
-from app.services.outdoor_live_sync import restamp_outdoor_history
 
 router = APIRouter()
 
@@ -12,12 +11,6 @@ def settings():
 
 @router.put("/settings")
 def update_settings(body: dict[str, str]):
+    # 设置只约束之后新开的户外单：绝不回刷已写入编号的落库快照。
     settings_repo.set_many(body)
-    for k in ("exposure_outdoor_uv_extra_m", "outdoor_uv_extra_m"):
-        if k in (body or {}):
-            try:
-                restamp_outdoor_history(float(body[k]))
-            except Exception:
-                pass
-            break
     return settings_repo.get_all()

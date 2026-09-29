@@ -14,44 +14,30 @@ def insert_run(window_id, fabric_id, result, note=""):
     finally:
         c.close()
 
-def get_run(run_id):
-    from app.services.outdoor_open import detail_view_outdoor
-    from app.repositories import settings_repo
+def _row_to_dict(row):
+    d = dict(row)
+    # 落库快照是唯一订货真相：读取时原样反序列化，绝不按现行设置重算。
+    d["result"] = json.loads(d.pop("result_json"))
+    return d
 
+def get_run(run_id):
     c = connect()
     try:
         row = c.execute(
             """SELECT r.*, w.name window_name, f.name fabric_name FROM calc_runs r
             LEFT JOIN windows w ON w.id=r.window_id LEFT JOIN fabrics f ON f.id=r.fabric_id
             WHERE r.id=?""", (run_id,)).fetchone()
-        if not row:
-            return None
-        d = dict(row)
-        raw = json.loads(d.pop("result_json"))
-        live_extra = float((settings_repo.get_all() or {}).get("exposure_outdoor_uv_extra_m") or 0)
-        d["result"] = detail_view_outdoor(raw, live_extra)
-        return d
+        return _row_to_dict(row) if row else None
     finally:
         c.close()
 
 def list_runs(limit=50):
-
     c = connect()
     try:
         rows = c.execute(
             """SELECT r.*, w.name window_name, f.name fabric_name FROM calc_runs r
             LEFT JOIN windows w ON w.id=r.window_id LEFT JOIN fabrics f ON f.id=r.fabric_id
             ORDER BY r.id DESC LIMIT ?""", (limit,)).fetchall()
-        from app.services.outdoor_open import list_view_outdoor
-        from app.repositories import settings_repo
-
-        out = []
-        for row in rows:
-            d = dict(row)
-            raw = json.loads(d.pop("result_json"))
-            live_extra = float((settings_repo.get_all() or {}).get("exposure_outdoor_uv_extra_m") or 0)
-            d["result"] = list_view_outdoor(raw, live_extra)
-            out.append(d)
-        return out
+        return [_row_to_dict(row) for row in rows]
     finally:
         c.close()
